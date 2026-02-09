@@ -986,12 +986,12 @@ function DashboardShell({
         </header>
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto pb-32 scrollbar-none">
+        <main className="flex-1 overflow-y-auto pb-44 scrollbar-none">
           {children}
         </main>
 
         {/* Floating Dock */}
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 pb-[env(safe-area-inset-bottom)]">
           <div className="flex items-center gap-2 rounded-3xl border border-white/10 bg-zinc-900/90 backdrop-blur-xl p-2 shadow-2xl shadow-black/80 ring-1 ring-white/5">
             <button 
               onClick={() => setCurrentView("home")}
