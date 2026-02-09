@@ -19,7 +19,8 @@ import {
   Trash2,
   ChevronDown,
   Check,
-  Settings
+  Settings,
+  Clock
 } from "lucide-react";
 import { 
   AreaChart,
@@ -66,18 +67,29 @@ type User = {
 
 type View = "home" | "transactions" | "statistics" | "settings";
 
+// --- Helpers ---
+const isValidDateInput = (dateStr: string) => {
+  const regex = /^(\d{2})-(\d{2})-(\d{4})$/;
+  if (!regex.test(dateStr)) return false;
+  const [_, d, m, y] = dateStr.match(regex)!;
+  const date = new Date(`${y}-${m}-${d}`);
+  return date.getDate() === parseInt(d) && date.getMonth() + 1 === parseInt(m) && date.getFullYear() === parseInt(y);
+};
+
+const isValidTimeInput = (timeStr: string) => {
+  if (!timeStr) return true; 
+  const regex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+  return regex.test(timeStr);
+};
+
+const parseDateToISO = (dateStr: string) => {
+  if (!isValidDateInput(dateStr)) return null;
+  const [_, d, m, y] = dateStr.match(/^(\d{2})-(\d{2})-(\d{4})$/)!;
+  return `${y}-${m}-${d}`;
+};
+
 // --- Utils ---
 const formatCurrency = (amount: number) => {
-  const absAmount = Math.abs(amount);
-  if (absAmount >= 1_000_000_000_000) {
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(amount / 1_000_000_000_000) + ' Triliun';
-  }
-  if (absAmount >= 1_000_000_000) {
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(amount / 1_000_000_000) + ' Miliar';
-  }
-  if (absAmount >= 100_000_000) {
-    return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(amount / 1_000_000) + ' Juta';
-  }
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 };
 
@@ -107,6 +119,51 @@ const sanitizeString = (str: string, maxLength: number = 500): string => {
 
 const validateAmount = (amount: number): boolean => {
   return !isNaN(amount) && isFinite(amount) && amount >= 0 && amount <= 1e15;
+};
+
+const getResponsiveAmountClass = (val: number, type: 'hero' | 'grid' | 'list' | 'modal' | 'stats') => {
+  // Rough format: "Rp 1.000.000" -> length 12
+  const len = val.toString().length + 4 + Math.floor((val.toString().length - 1) / 3); 
+  
+  if (type === 'hero') {
+    // Top Balance Card (Full width on all screens)
+    if (len > 20) return "text-xl sm:text-2xl md:text-3xl lg:text-4xl"; 
+    if (len > 16) return "text-2xl sm:text-3xl md:text-4xl lg:text-5xl"; 
+    if (len > 12) return "text-3xl sm:text-4xl md:text-5xl lg:text-6xl"; 
+    return "text-4xl sm:text-5xl md:text-6xl lg:text-7xl";
+  }
+
+  if (type === 'stats') {
+    // Statistics Cards (Full width on mobile, Half width on desktop)
+    // Needs to be smaller than hero on desktop to fit 2-columns
+    if (len > 20) return "text-lg sm:text-lg md:text-xl lg:text-2xl"; 
+    if (len > 16) return "text-xl sm:text-xl md:text-2xl lg:text-3xl"; 
+    if (len > 12) return "text-2xl sm:text-3xl md:text-3xl lg:text-4xl"; 
+    return "text-3xl sm:text-4xl md:text-4xl lg:text-5xl";
+  }
+  
+  if (type === 'modal') {
+    // Transaction Detail Hero
+    if (len > 20) return "text-xl sm:text-2xl";
+    if (len > 16) return "text-2xl sm:text-3xl"; 
+    return "text-3xl sm:text-4xl";
+  }
+
+  if (type === 'grid') {
+    // Income/Expense small cards (2 columns on mobile/desktop)
+    if (len > 18) return "text-[10px] sm:text-xs md:text-sm"; 
+    if (len > 14) return "text-xs sm:text-sm md:text-base"; 
+    return "text-sm sm:text-base md:text-lg"; 
+  }
+
+  if (type === 'list') {
+    // Transaction list items (right side)
+    if (len > 18) return "text-[10px] sm:text-xs";
+    if (len > 14) return "text-xs sm:text-sm";
+    return "text-sm sm:text-base";
+  }
+
+  return "text-base";
 };
 
 const validatePassword = (password: string): { valid: boolean; message: string } => {
@@ -182,14 +239,6 @@ async function encryptTransactionData(
     encryptedCategory: await encryptData(category, dataKey),
     encryptedNotes: await encryptData(notes || "", dataKey)
   };
-}
-
-// Truncate notes to word boundary
-function truncateNotes(text: string, maxWords: number = 6): string {
-  if (!text) return "";
-  const words = text.trim().split(/\s+/);
-  if (words.length <= maxWords) return text;
-  return words.slice(0, maxWords).join(" ") + "...";
 }
 
 // --- Components ---
@@ -446,7 +495,19 @@ function AddTransactionModal({
   const [isNewCategory, setIsNewCategory] = useState(availableCategories.length === 0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(() => {
+    const now = new Date();
+    const d = String(now.getDate()).padStart(2, '0');
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const y = now.getFullYear();
+    return `${d}-${m}-${y}`;
+  });
+  const [time, setTime] = useState(() => {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    return `${h}:${min}`;
+  });
   const [error, setError] = useState("");
 
   // Real-time validation
@@ -476,7 +537,21 @@ function AddTransactionModal({
       return;
     }
     
-    onSubmit({ type, amount: amountValue, category, notes, date });
+    if (!isValidDateInput(date)) {
+      setError("Invalid date format (DD-MM-YYYY)");
+      return;
+    }
+
+    if (time && !isValidTimeInput(time)) {
+      setError("Invalid time format (HH:mm)");
+      return;
+    }
+    
+    // Combine Date & Time
+    const isoDate = parseDateToISO(date);
+    const combinedDateTime = time ? `${isoDate}T${time}` : `${isoDate}T00:00`;
+    
+    onSubmit({ type, amount: amountValue, category, notes, date: combinedDateTime });
   };
 
   return (
@@ -606,11 +681,25 @@ function AddTransactionModal({
             <div className="relative">
               <Calendar className="absolute left-4 top-3.5 h-5 w-5 text-zinc-500" />
               <input
-                type="date"
+                type="text"
                 required
-                className="block w-full rounded-xl border border-neutral-700 bg-neutral-800/50 pl-11 pr-4 py-3 text-white placeholder-zinc-500 focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all [color-scheme:dark]"
+                placeholder="DD-MM-YYYY"
+                maxLength={10}
+                className="block w-full rounded-xl border border-neutral-700 bg-neutral-800/50 pl-11 pr-4 py-3 text-white placeholder-zinc-500 focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
+              />
+            </div>
+
+            <div className="relative">
+              <Clock className="absolute left-4 top-3.5 h-5 w-5 text-zinc-500" />
+              <input
+                type="text"
+                placeholder="HH:mm"
+                maxLength={5}
+                className="block w-full rounded-xl border border-neutral-700 bg-neutral-800/50 pl-11 pr-4 py-3 text-white placeholder-zinc-500 focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
               />
             </div>
 
@@ -670,7 +759,12 @@ function TransactionDetailModal({
   const [isNewCategory, setIsNewCategory] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [notes, setNotes] = useState(transaction.notes || "");
-  const [date, setDate] = useState(transaction.transaction_date);
+  const [date, setDate] = useState(() => {
+    const isoDate = transaction.transaction_date.split('T')[0];
+    const [y, m, d] = isoDate.split('-');
+    return `${d}-${m}-${y}`;
+  });
+  const [time, setTime] = useState(transaction.transaction_date.includes('T') ? transaction.transaction_date.split('T')[1].substring(0, 5) : "");
   const [error, setError] = useState("");
 
   // Real-time validation
@@ -709,6 +803,20 @@ function TransactionDetailModal({
       setError("Notes must be 200 characters or less");
       return;
     }
+
+    if (!isValidDateInput(date)) {
+      setError("Invalid date format (DD-MM-YYYY)");
+      return;
+    }
+
+    if (time && !isValidTimeInput(time)) {
+      setError("Invalid time format (HH:mm)");
+      return;
+    }
+    
+    // Combine Date & Time
+    const isoDate = parseDateToISO(date);
+    const combinedDateTime = time ? `${isoDate}T${time}` : `${isoDate}T00:00`;
     
     onEdit({
       ...transaction,
@@ -716,7 +824,7 @@ function TransactionDetailModal({
       amount: amountValue,
       category_name: category,
       notes: notes,
-      transaction_date: date
+      transaction_date: combinedDateTime
     });
     onClose();
   };
@@ -748,7 +856,7 @@ function TransactionDetailModal({
                   <span className={`text-xs font-semibold uppercase tracking-widest mb-2 px-3 py-1 rounded-full border ${transaction.transaction_type === 'Incoming' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400' : 'border-red-500/20 bg-red-500/10 text-red-400'}`}>
                     {transaction.transaction_type === 'Incoming' ? 'Income' : 'Expense'}
                   </span>
-                  <span className="font-bold text-3xl text-white tracking-tight">
+                  <span className={`font-bold text-white tracking-tight ${getResponsiveAmountClass(transaction.amount, 'modal')}`}>
                     {formatCurrency(transaction.amount)}
                   </span>
                 </div>
@@ -766,10 +874,17 @@ function TransactionDetailModal({
                     </span>
                   </div>
 
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-neutral-800/30 border border-neutral-800">
+                    <span className="text-sm text-zinc-500 font-medium">Time</span>
+                    <span className="text-sm text-white font-medium">
+                      {new Date(transaction.transaction_date).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace('.', ':')}
+                    </span>
+                  </div>
+
                   {transaction.notes && (
                     <div className="p-4 rounded-xl bg-neutral-800/30 border border-neutral-800">
                       <span className="text-sm text-zinc-500 font-medium block mb-2">Notes</span>
-                      <p className="text-sm text-zinc-300 leading-relaxed">{transaction.notes}</p>
+                      <p className="text-sm text-zinc-300 leading-relaxed break-words">{transaction.notes}</p>
                     </div>
                   )}
                 </div>
@@ -912,11 +1027,25 @@ function TransactionDetailModal({
                 <div className="relative">
                   <Calendar className="absolute left-4 top-3.5 h-5 w-5 text-zinc-500" />
                   <input
-                    type="date"
+                    type="text"
                     required
-                    className="block w-full rounded-xl border border-neutral-700 bg-neutral-800/50 pl-11 pr-4 py-3 text-white placeholder-zinc-500 focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all [color-scheme:dark]"
+                    placeholder="DD-MM-YYYY"
+                    maxLength={10}
+                    className="block w-full rounded-xl border border-neutral-700 bg-neutral-800/50 pl-11 pr-4 py-3 text-white placeholder-zinc-500 focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="relative">
+                  <Clock className="absolute left-4 top-3.5 h-5 w-5 text-zinc-500" />
+                  <input
+                    type="text"
+                    placeholder="HH:mm"
+                    maxLength={5}
+                    className="block w-full rounded-xl border border-neutral-700 bg-neutral-800/50 pl-11 pr-4 py-3 text-white placeholder-zinc-500 focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all"
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
                   />
                 </div>
 
@@ -1075,27 +1204,27 @@ function HomeView({
         <div className="absolute top-0 right-0 -mr-4 -mt-4 h-48 w-48 rounded-full bg-zinc-700 opacity-20 blur-3xl group-hover:opacity-30 transition-opacity duration-500"></div>
         <div className="relative z-10 flex flex-col p-8">
           <p className="text-sm font-medium text-zinc-400 uppercase tracking-widest mb-2">Total Balance (Decrypted)</p>
-          <h2 className="text-5xl font-bold text-white tracking-tight mb-8">
+          <h2 className={`font-bold text-white tracking-tight mb-8 ${getResponsiveAmountClass(user?.current_balance || 0, 'hero')}`}>
             {formatCurrency(user?.current_balance || 0)}
           </h2>
           
-          <div className="w-full grid grid-cols-2 gap-4 border-t border-neutral-800 pt-6">
-             <div className="flex items-center gap-4">
-               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                 <ArrowDownLeft className="h-6 w-6" />
+          <div className="w-full grid grid-cols-2 gap-3 border-t border-neutral-800 pt-6">
+             <div className="flex items-center gap-3 overflow-hidden">
+               <div className="flex-shrink-0 flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                 <ArrowDownLeft className="h-5 w-5 md:h-6 md:w-6" />
                </div>
-               <div>
-                  <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Income</p>
-                  <p className="font-bold text-emerald-400 text-lg">{formatCurrency(income)}</p>
+               <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs text-zinc-500 font-medium uppercase tracking-wider truncate">Income</p>
+                  <p className={`font-bold text-emerald-400 ${getResponsiveAmountClass(income, 'grid')} truncate`}>{formatCurrency(income)}</p>
                </div>
              </div>
-             <div className="flex items-center gap-4">
-               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20">
-                 <ArrowUpRight className="h-6 w-6" />
+             <div className="flex items-center gap-3 overflow-hidden">
+               <div className="flex-shrink-0 flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20">
+                 <ArrowUpRight className="h-5 w-5 md:h-6 md:w-6" />
                </div>
-               <div>
-                  <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Expenses</p>
-                  <p className="font-bold text-red-400 text-lg">{formatCurrency(expense)}</p>
+               <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs text-zinc-500 font-medium uppercase tracking-wider truncate">Expenses</p>
+                  <p className={`font-bold text-red-400 ${getResponsiveAmountClass(expense, 'grid')} truncate`}>{formatCurrency(expense)}</p>
                </div>
              </div>
           </div>
@@ -1130,11 +1259,11 @@ function HomeView({
                     <p className="text-xs text-zinc-400 font-medium">{new Date(t.transaction_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                   <p className={`font-bold text-base ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
+                <div className="text-right flex-shrink-0">
+                   <p className={`font-bold ${getResponsiveAmountClass(t.amount, 'list')} ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
                       {t.transaction_type === 'Incoming' ? '+' : '-'} {formatCurrency(t.amount)}
                    </p>
-                   {t.notes && <p className="text-xs text-zinc-400 max-w-[120px] ml-auto">{truncateNotes(t.notes, 5)}</p>}
+                   {t.notes && <p className="text-xs text-zinc-500 max-w-[120px] ml-auto truncate">{t.notes}</p>}
                 </div>
               </div>
             ))}
@@ -1230,11 +1359,11 @@ function TransactionsView({
                         <p className="text-xs text-zinc-400 font-medium">{new Date(t.transaction_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-bold ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <div className="text-right flex-shrink-0">
+                      <p className={`font-bold ${getResponsiveAmountClass(t.amount, 'list')} ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
                         {t.transaction_type === 'Incoming' ? '+' : '-'} {formatCurrency(t.amount)}
                       </p>
-                      {t.notes && <p className="text-xs text-zinc-400 max-w-[120px] ml-auto">{truncateNotes(t.notes, 5)}</p>}
+                      {t.notes && <p className="text-xs text-zinc-500 max-w-[100px] ml-auto truncate">{t.notes}</p>}
                     </div>
                   </button>
                 ))}
@@ -1288,8 +1417,8 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
     }
     
     return transactions.filter(t => {
-      // Use standard transaction date or created_at if available
-      const txDate = new Date(t.created_at || t.transaction_date);
+      // Use standard transaction date
+      const txDate = new Date(t.transaction_date);
       // Convert txDate to Jakarta "local" Date object for comparison
       const txDateJakarta = getJakartaDate(txDate);
       return txDateJakarta >= startDate;
@@ -1317,7 +1446,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
       }
       
       filteredTransactions.forEach(t => {
-        const date = new Date(t.created_at || t.transaction_date); 
+        const date = new Date(t.transaction_date); 
         const jakartaDate = getJakartaDate(date);
         const hourKey = formatHourKey(jakartaDate);
 
@@ -1350,7 +1479,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
       }
       
       filteredTransactions.forEach(t => {
-        const date = new Date(t.created_at || t.transaction_date);
+        const date = new Date(t.transaction_date);
         const jakartaDate = getJakartaDate(date);
         const dayKey = formatDateKey(jakartaDate);
 
@@ -1379,7 +1508,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
       }
       
       filteredTransactions.forEach(t => {
-        const date = new Date(t.created_at || t.transaction_date);
+        const date = new Date(t.transaction_date);
         const jakartaDate = getJakartaDate(date);
         const dayKey = formatDateKey(jakartaDate);
 
@@ -1407,7 +1536,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
       }
       
       filteredTransactions.forEach(t => {
-        const date = new Date(t.created_at || t.transaction_date);
+        const date = new Date(t.transaction_date);
         const jakartaDate = getJakartaDate(date);
         const monthKey = formatMonthKey(jakartaDate);
 
@@ -1440,9 +1569,8 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
     });
 
     // Mask future data points - compare against Jakarta Now timestamp
-    const nowTime = now.getTime(); // 'now' is already getJakartaDate()
+    const nowTime = now.getTime();
     return entries.map(entry => {
-      // Compare timestamps derived from Jakarta dates
       if (entry.timestamp > nowTime) {
         return { ...entry, income: null, expense: null, balance: null };
       }
@@ -1521,7 +1649,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
         {trendData.length > 0 ? (
           <div className="w-full h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.3}/>
@@ -1532,13 +1660,19 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
                 <XAxis 
                   dataKey="label" 
                   stroke="#71717a" 
-                  tick={{fill: '#a1a1aa', fontSize: 11, dy: 10}} 
-                  angle={-45}
+                  tick={{fill: '#a1a1aa', fontSize: 10, dy: 10}} 
                   textAnchor="end"
-                  height={80}
-                  interval={timeRange === 'DAY' ? 2 : timeRange === 'MONTH' ? 2 : timeRange === 'YEAR' ? 0 : 0}
+                  height={60}
+                  minTickGap={30}
+                  padding={{ right: 20 }}
+                  angle={-45}
                 />
-                <YAxis stroke="#71717a" tick={{fill: '#a1a1aa'}} />
+                <YAxis 
+                  stroke="#71717a" 
+                  tick={{fill: '#a1a1aa', fontSize: 9}} 
+                  width={55}
+                  tickFormatter={(val) => new Intl.NumberFormat('id-ID').format(val)}
+                />
                 <Tooltip 
                   contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
                   itemStyle={{ color: '#fff' }}
@@ -1552,6 +1686,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
                   fillOpacity={1} 
                   fill="url(#colorBalance)" 
                   activeDot={{ r: 6, strokeWidth: 0 }}
+                  dot={{ r: 3, strokeWidth: 0, fill: '#60a5fa' }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -1576,7 +1711,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
                 <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total Income</p>
               </div>
             </div>
-            <p className="text-3xl font-bold text-emerald-400 tracking-tight">{formatCurrency(totalIncome)}</p>
+            <p className={`font-bold text-emerald-400 tracking-tight ${getResponsiveAmountClass(totalIncome, 'stats')}`}>{formatCurrency(totalIncome)}</p>
           </div>
         </div>
 
@@ -1591,7 +1726,7 @@ function StatisticsView({ transactions }: { transactions: Transaction[] }) {
                 <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total Expenses</p>
               </div>
             </div>
-            <p className="text-3xl font-bold text-red-400 tracking-tight">{formatCurrency(totalExpense)}</p>
+            <p className={`font-bold text-red-400 tracking-tight ${getResponsiveAmountClass(totalExpense, 'stats')}`}>{formatCurrency(totalExpense)}</p>
           </div>
         </div>
       </div>
@@ -1854,8 +1989,18 @@ export default function App() {
       const decryptedBalance = await decryptUserBalance(meData.current_balance, identity.dataKey);
       const decryptedTx = await decryptTransactions(txData, identity.dataKey);
 
+      // Sort by transaction_date descending (newest first)
+      const sortedTx = decryptedTx.sort((a, b) => {
+        const dateDiff = new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        // Fallback to created_at descending if dates are same
+        const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return createdB - createdA;
+      });
+
       setUser({ ...meData, current_balance: decryptedBalance });
-      setTransactions(decryptedTx);
+      setTransactions(sortedTx);
       
       console.log("fetchData: Success, data loaded");
 
