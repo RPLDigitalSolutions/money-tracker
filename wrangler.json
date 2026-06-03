@@ -21,8 +21,8 @@
 	"d1_databases": [
 		{
 			"binding": "D1",
-			"database_name": "money-tracker",
-			"database_id": "1a78d35f-e4c8-4f1a-84dc-6135d0046b71"
+			"database_name": "money-tracker-db",
+			"database_id": "2bb35b25-e5fd-4384-84e2-d948f9ae3874"
 		}
 	]
 	/**
