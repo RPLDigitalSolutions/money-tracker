@@ -1,24 +1,19 @@
 @import "tailwindcss";
 
 @theme {
-  --color-skin-shadowed: #A65D46;
-  --color-charcoal-suit: #1F1F24;
-  --color-off-white-shirt: #FFFFFF;
-  --color-silver-stripe: #A1A1AA;
-  --color-dark-stripe: #18181B;
-  --color-chair-brown: #3F3F46;
-  --color-deep-shadow: #09090B;
-  --color-metal-accent: #27272A;
+  --color-brand-neon-green: #00C805;
+  --color-brand-neon-red: #FF5000;
+  --color-brand-bg: #000000;
 }
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: dark;
-  color: var(--color-off-white-shirt);
-  background-color: var(--color-deep-shadow);
+  color: #FFFFFF;
+  background-color: #000000;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -29,5 +24,6 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: var(--color-deep-shadow);
+  background-color: #000000;
+  -webkit-tap-highlight-color: transparent;
 }

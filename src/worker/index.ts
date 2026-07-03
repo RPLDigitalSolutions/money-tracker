@@ -215,7 +215,7 @@ app.put("/api/me", authMiddleware, async (c) => {
 app.get("/api/transactions", authMiddleware, async (c) => {
   const user = c.get("user") as AuthContext["user"];
   const results = await c.env.D1.prepare(
-    "SELECT * FROM transactions WHERE user_id = ? ORDER BY transaction_date DESC, created_at DESC"
+    "SELECT * FROM transactions WHERE user_id = ? ORDER BY transaction_date DESC"
   )
     .bind(user.id)
     .all();

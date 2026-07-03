@@ -1,9 +1,10 @@
 
-import { useState, useEffect, useMemo, useCallback, Suspense, lazy } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { 
   Home, 
   Wallet, 
   BarChart3, 
+  LogOut, 
   Plus, 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -12,6 +13,7 @@ import {
   Calendar,
   Tag,
   AlignLeft,
+  Search,
   Lock,
   Edit,
   Trash2,
@@ -20,6 +22,19 @@ import {
   Settings,
   Clock
 } from "lucide-react";
+import { 
+  AreaChart,
+  Area,
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart, 
+  Pie, 
+  Cell,
+  Legend
+} from "recharts";
 import { 
   generateIdentity, 
   encryptIdentity, 
@@ -32,7 +47,6 @@ import {
   serializeIdentity,
   deserializeIdentity
 } from "./lib/crypto";
-import { BrowserRouter, Routes, Route, NavLink, Outlet, Navigate } from "react-router-dom";
 
 // --- Types ---
 type Transaction = {
@@ -50,6 +64,9 @@ type User = {
   username: string;
   current_balance: number; // Decrypted
 };
+
+type View = "home" | "transactions" | "statistics" | "settings";
+
 // --- Helpers ---
 const isValidDateInput = (dateStr: string) => {
   const regex = /^(\d{2})-(\d{2})-(\d{4})$/;
@@ -75,9 +92,26 @@ const parseDateToISO = (dateStr: string) => {
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(amount);
 };
+
+const COLORS = ['#34d399', '#fb7185', '#38bdf8', '#a78bfa', '#fbbf24', '#818cf8'];
+
 // --- Helper Functions ---
 
 // Date key formatting helpers
+const formatDateKey = (date: Date): string => {
+  return date.getFullYear() + '-' + 
+         String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+         String(date.getDate()).padStart(2, '0');
+};
+
+const formatHourKey = (date: Date): string => {
+  return formatDateKey(date) + 'T' + String(date.getHours()).padStart(2, '0');
+};
+
+const formatMonthKey = (date: Date): string => {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
 // Input validation helpers
 const sanitizeString = (str: string, maxLength: number = 500): string => {
   return str.trim().slice(0, maxLength);
@@ -1058,11 +1092,851 @@ function TransactionDetailModal({
   );
 }
 
-let HomeView = lazy(() => import("./views/HomeView"));
-let ListView = lazy(() => import("./views/ListView"));
-let StatisticsView = lazy(() => import("./views/StatisticsView"));
-let SettingsView = lazy(() => import("./views/SettingsView"));
+function DashboardShell({ 
+  onAddTransaction,
+  children,
+  currentView,
+  setCurrentView
+}: { 
+  onAddTransaction: () => void,
+  children: React.ReactNode,
+  currentView: View,
+  setCurrentView: (v: View) => void
+}) {
+  return (
+    <div className="flex h-screen bg-black text-white font-sans overflow-hidden selection:bg-zinc-700 selection:text-white">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {/* Header */}
+        <header className="flex-none flex items-center justify-between px-6 py-4 bg-black/50 backdrop-blur-md border-b border-white/5 z-20">
+          <div>
+            <h1 className="text-xl font-bold text-white tracking-tight">Money Tracker</h1>
+          </div>
+        </header>
+
+        {/* Scrollable Content */}
+        <main className="flex-1 overflow-y-auto pb-44 scrollbar-none">
+          {children}
+        </main>
+
+        {/* Floating Dock */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-30 pb-[env(safe-area-inset-bottom)]">
+          <div className="flex items-center gap-2 rounded-3xl border border-white/10 bg-zinc-900/90 backdrop-blur-xl p-2 shadow-2xl shadow-black/80 ring-1 ring-white/5">
+            <button 
+              onClick={() => setCurrentView("home")}
+              className={`p-3.5 rounded-2xl transition-all duration-300 ${
+                currentView === 'home' 
+                ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/5' 
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+              }`}
+            >
+              <Home className="h-6 w-6" />
+            </button>
+            <button 
+              onClick={() => setCurrentView("transactions")}
+              className={`p-3.5 rounded-2xl transition-all duration-300 ${
+                currentView === 'transactions' 
+                ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/5' 
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+              }`}
+            >
+              <Wallet className="h-6 w-6" />
+            </button>
+
+            <button 
+              onClick={() => setCurrentView("statistics")}
+              className={`p-3.5 rounded-2xl transition-all duration-300 ${
+                currentView === 'statistics' 
+                ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/5' 
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+              }`}
+            >
+              <BarChart3 className="h-6 w-6" />
+            </button>
+            <button 
+              onClick={() => setCurrentView("settings")}
+              className={`p-3.5 rounded-2xl transition-all duration-300 ${
+                currentView === 'settings' 
+                ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/5' 
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
+              }`}
+            >
+              <Settings className="h-6 w-6" />
+            </button>
+
+            <div className="w-px h-8 bg-white/10 mx-1"></div>
+
+            <button 
+              onClick={() => onAddTransaction()}
+              className="p-3.5 rounded-2xl text-zinc-400 hover:text-white hover:bg-white/10 transition-all duration-300"
+            >
+              <Plus className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Views ---
+
+function HomeView({ 
+  user, 
+  transactions, 
+  onTransactionClick 
+}: { 
+  user: User | null; 
+  transactions: Transaction[]; 
+  onTransactionClick: (t: Transaction) => void;
+}) {
+  const recentTransactions = transactions.slice(0, 5);
+  const income = transactions.filter(t => t.transaction_type === 'Incoming').reduce((sum, t) => sum + t.amount, 0);
+  const expense = transactions.filter(t => t.transaction_type === 'Outgoing').reduce((sum, t) => sum + t.amount, 0);
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-24">
+      <h2 className="text-5xl font-bold text-white tracking-tight mb-2">Welcome, <span className="text-zinc-400">{user?.username}</span></h2>
+      <p className="text-zinc-500 mb-8">Here is your financial overview.</p>
+
+      {/* Balance Card */}
+      <div className="relative overflow-hidden rounded-3xl bg-neutral-900 border border-neutral-800 shadow-2xl group">
+        <div className="absolute top-0 right-0 -mr-4 -mt-4 h-48 w-48 rounded-full bg-zinc-700 opacity-20 blur-3xl group-hover:opacity-30 transition-opacity duration-500"></div>
+        <div className="relative z-10 flex flex-col p-8">
+          <p className="text-sm font-medium text-zinc-400 uppercase tracking-widest mb-2">Total Balance (Decrypted)</p>
+          <h2 className={`font-bold text-white tracking-tight mb-8 ${getResponsiveAmountClass(user?.current_balance || 0, 'hero')}`}>
+            {formatCurrency(user?.current_balance || 0)}
+          </h2>
+          
+          <div className="w-full grid grid-cols-2 gap-3 border-t border-neutral-800 pt-6">
+             <div className="flex items-center gap-3 overflow-hidden">
+               <div className="flex-shrink-0 flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                 <ArrowDownLeft className="h-5 w-5 md:h-6 md:w-6" />
+               </div>
+               <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs text-zinc-500 font-medium uppercase tracking-wider truncate">Income</p>
+                  <p className={`font-bold text-emerald-400 ${getResponsiveAmountClass(income, 'grid')} truncate`}>{formatCurrency(income)}</p>
+               </div>
+             </div>
+             <div className="flex items-center gap-3 overflow-hidden">
+               <div className="flex-shrink-0 flex h-10 w-10 md:h-12 md:w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-400 border border-red-500/20">
+                 <ArrowUpRight className="h-5 w-5 md:h-6 md:w-6" />
+               </div>
+               <div className="min-w-0">
+                  <p className="text-[10px] md:text-xs text-zinc-500 font-medium uppercase tracking-wider truncate">Expenses</p>
+                  <p className={`font-bold text-red-400 ${getResponsiveAmountClass(expense, 'grid')} truncate`}>{formatCurrency(expense)}</p>
+               </div>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Activity */}
+      <div>
+        <div className="flex items-center justify-between mb-4 px-1">
+          <h3 className="text-lg font-bold text-white">Recent Activity</h3>
+        </div>
+        
+        {recentTransactions.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-800 bg-neutral-900/50 p-8 text-center text-zinc-500">
+            No decrypted transactions found.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentTransactions.map((t, i) => (
+              <div 
+                key={t.id} 
+                onClick={() => onTransactionClick(t)}
+                className="group flex items-center justify-between rounded-2xl bg-neutral-900/80 p-5 transition-all hover:bg-neutral-800 border border-transparent hover:border-neutral-700 cursor-pointer" 
+                style={{ animationDelay: `${i * 100}ms` }}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-neutral-950 border border-neutral-800 ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {t.transaction_type === 'Incoming' ? <ArrowDownLeft className="h-6 w-6" /> : <ArrowUpRight className="h-6 w-6" />}
+                  </div>
+                  <div>
+                    <p className="font-bold text-white text-base mb-0.5">{t.category_name}</p>
+                    <p className="text-xs text-zinc-400 font-medium">{new Date(t.transaction_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                   <p className={`font-bold ${getResponsiveAmountClass(t.amount, 'list')} ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {t.transaction_type === 'Incoming' ? '+' : '-'} {formatCurrency(t.amount)}
+                   </p>
+                   {t.notes && <p className="text-xs text-zinc-500 max-w-[120px] ml-auto truncate">{t.notes}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TransactionsView({ 
+  transactions, 
+  onTransactionClick 
+}: { 
+  transactions: Transaction[]; 
+  onTransactionClick: (transaction: Transaction) => void;
+}) {
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  const filtered = transactions.filter(t => 
+    t.category_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    t.notes?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Group by month (newest first)
+  const groupedByMonth = useMemo(() => {
+    const groups: Record<string, Transaction[]> = {};
+    
+    filtered.forEach(t => {
+      const date = new Date(t.transaction_date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!groups[monthKey]) {
+        groups[monthKey] = [];
+      }
+      groups[monthKey].push(t);
+    });
+    
+    // Sort months newest first, and transactions within each month
+    return Object.entries(groups)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([monthKey, txs]) => ({
+        monthKey,
+        monthLabel: new Date(monthKey + '-01').toLocaleDateString('id-ID', { year: 'numeric', month: 'long' }),
+        transactions: txs.sort((a, b) => {
+          const dateDiff = new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          // Fallback to created_at descending if dates are same
+          const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return createdB - createdA;
+        })
+      }));
+  }, [filtered]);
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto min-h-full animate-in slide-in-from-right-10 duration-500 pb-24">
+      <div className="mb-6 sticky top-0 z-10 bg-black/90 backdrop-blur-md py-4 -mt-4 border-b border-white/5">
+        <h2 className="text-2xl font-bold text-white mb-4">All Transactions</h2>
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-5 w-5 text-zinc-500" />
+          <input 
+            type="text" 
+            placeholder="Search transactions..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-zinc-900 pb-3 pt-3 pl-10 pr-4 text-white placeholder-zinc-600 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+          />
+        </div>
+      </div>
+
+      {groupedByMonth.length === 0 ? (
+        <div className="text-center text-zinc-500 py-12">No transactions found.</div>
+      ) : (
+        <div className="space-y-8 pb-8">
+          {groupedByMonth.map(({ monthKey, monthLabel, transactions }) => (
+            <div key={monthKey}>
+              <h3 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3 px-1">
+                {monthLabel}
+              </h3>
+              <div className="space-y-3">
+                {transactions.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => onTransactionClick(t)}
+                    className="w-full flex items-center justify-between rounded-2xl border border-transparent bg-zinc-900 p-4 transition-all hover:bg-zinc-800 hover:border-zinc-700 cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-full bg-black/50 ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {t.transaction_type === 'Incoming' ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-white">{t.category_name}</h4>
+                        <p className="text-xs text-zinc-400 font-medium">{new Date(t.transaction_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className={`font-bold ${getResponsiveAmountClass(t.amount, 'list')} ${t.transaction_type === 'Incoming' ? 'text-emerald-400' : 'text-red-400'}`}>
+                        {t.transaction_type === 'Incoming' ? '+' : '-'} {formatCurrency(t.amount)}
+                      </p>
+                      {t.notes && <p className="text-xs text-zinc-500 max-w-[100px] ml-auto truncate">{t.notes}</p>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatisticsView({ transactions }: { transactions: Transaction[] }) {
+  const [timeRange, setTimeRange] = useState<'DAY' | 'WEEK' | 'MONTH' | 'YEAR'>('MONTH');
+  const [isTimeRangeOpen, setIsTimeRangeOpen] = useState(false);
+
+  const getJakartaDate = (date: Date = new Date()) => {
+    // Treat the date as Jakarta time (UTC+7)
+    // 1. Get the local time string in Jakarta
+    const jakartaString = date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    // 2. Parse it back to a Date object (browser will treat it as local, which is fine for extracting components)
+    return new Date(jakartaString);
+  };
+
+
+  // Filter transactions based on time range
+  const filteredTransactions = useMemo(() => {
+    // Current time in Jakarta
+    const now = getJakartaDate();
+    let startDate: Date;
+    
+    if (timeRange === 'DAY') {
+      // Today from 00:00 Jakarta time
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+    } else if (timeRange === 'WEEK') {
+      // This week from Monday
+      startDate = new Date(now);
+      const dayOfWeek = startDate.getDay();
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; 
+      startDate.setDate(startDate.getDate() - diff);
+      startDate.setHours(0, 0, 0, 0);
+    } else if (timeRange === 'MONTH') {
+      // This month from 1st
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+    } else {
+      // YEAR
+      startDate = new Date(now.getFullYear(), 0, 1);
+      startDate.setHours(0, 0, 0, 0);
+    }
+    
+    return transactions.filter(t => {
+      // Use standard transaction date
+      const txDate = new Date(t.transaction_date);
+      // Convert txDate to Jakarta "local" Date object for comparison
+      const txDateJakarta = getJakartaDate(txDate);
+      return txDateJakarta >= startDate;
+    });
+  }, [transactions, timeRange]);
+
+  // Prep data for line chart - group by selected time range
+  const trendData = useMemo(() => {
+    const now = getJakartaDate(); // Now in Jakarta
+    const dataMap: Record<string, { income: number; expense: number; label: string; timestamp: number }> = {};
+    
+    if (timeRange === 'DAY') {
+      // Today from 00:00 to 23:59, group by hour
+      for (let i = 0; i <= 23; i++) {
+        const hourDate = new Date(now);
+        hourDate.setHours(i, 0, 0, 0);
+        const hourKey = formatHourKey(hourDate);
+        
+        dataMap[hourKey] = { 
+          income: 0, 
+          expense: 0, 
+          label: hourDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }), // e.g. 13:00
+          timestamp: hourDate.getTime()
+        };
+      }
+      
+      filteredTransactions.forEach(t => {
+        const date = new Date(t.transaction_date); 
+        const jakartaDate = getJakartaDate(date);
+        const hourKey = formatHourKey(jakartaDate);
+
+        if (dataMap[hourKey]) {
+          if (t.transaction_type === 'Incoming') {
+            dataMap[hourKey].income += t.amount;
+          } else {
+            dataMap[hourKey].expense += t.amount;
+          }
+        }
+      });
+    } else if (timeRange === 'WEEK') {
+      const startOfWeek = new Date(now);
+      const dayOfWeek = startOfWeek.getDay();
+      const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      startOfWeek.setDate(startOfWeek.getDate() - diff);
+      
+      for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(startOfWeek);
+        dayDate.setDate(startOfWeek.getDate() + i);
+        dayDate.setHours(0, 0, 0, 0);
+        const dayKey = formatDateKey(dayDate);
+                       
+        dataMap[dayKey] = { 
+          income: 0, 
+          expense: 0, 
+          label: dayDate.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' }),
+          timestamp: dayDate.getTime()
+        };
+      }
+      
+      filteredTransactions.forEach(t => {
+        const date = new Date(t.transaction_date);
+        const jakartaDate = getJakartaDate(date);
+        const dayKey = formatDateKey(jakartaDate);
+
+        if (dataMap[dayKey]) {
+          if (t.transaction_type === 'Incoming') {
+            dataMap[dayKey].income += t.amount;
+          } else {
+            dataMap[dayKey].expense += t.amount;
+          }
+        }
+      });
+    } else if (timeRange === 'MONTH') {
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      
+      for (let i = 1; i <= daysInMonth; i++) {
+        const dayDate = new Date(now.getFullYear(), now.getMonth(), i);
+        dayDate.setHours(0, 0, 0, 0);
+        const dayKey = formatDateKey(dayDate);
+        
+        dataMap[dayKey] = { 
+          income: 0, 
+          expense: 0, 
+          label: dayDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }),
+          timestamp: dayDate.getTime()
+        };
+      }
+      
+      filteredTransactions.forEach(t => {
+        const date = new Date(t.transaction_date);
+        const jakartaDate = getJakartaDate(date);
+        const dayKey = formatDateKey(jakartaDate);
+
+        if (dataMap[dayKey]) {
+          if (t.transaction_type === 'Incoming') {
+            dataMap[dayKey].income += t.amount;
+          } else {
+            dataMap[dayKey].expense += t.amount;
+          }
+        }
+      });
+    } else {
+      // YEAR
+      for (let i = 0; i < 12; i++) {
+        const monthDate = new Date(now.getFullYear(), i, 1);
+        monthDate.setHours(0, 0, 0, 0);
+        const monthKey = formatMonthKey(monthDate);
+        
+        dataMap[monthKey] = { 
+          income: 0, 
+          expense: 0, 
+          label: monthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          timestamp: monthDate.getTime()
+        };
+      }
+      
+      filteredTransactions.forEach(t => {
+        const date = new Date(t.transaction_date);
+        const jakartaDate = getJakartaDate(date);
+        const monthKey = formatMonthKey(jakartaDate);
+
+        if (dataMap[monthKey]) {
+          if (t.transaction_type === 'Incoming') {
+            dataMap[monthKey].income += t.amount;
+          } else {
+            dataMap[monthKey].expense += t.amount;
+          }
+        }
+      });
+    }
+    
+    // Convert to array
+    const entries = Object.entries(dataMap).map(([key, data]) => ({
+      key,
+      label: data.label,
+      income: data.income,
+      expense: data.expense,
+      net: data.income - data.expense,
+      balance: 0, 
+      timestamp: data.timestamp
+    }));
+    
+    // Calculate running balance
+    let runningBalance = 0;
+    entries.forEach(entry => {
+      runningBalance += entry.net;
+      entry.balance = runningBalance;
+    });
+
+    // Mask future data points - compare against Jakarta Now timestamp
+    const nowTime = now.getTime();
+    return entries.map(entry => {
+      if (entry.timestamp > nowTime) {
+        return { ...entry, income: null, expense: null, balance: null };
+      }
+      return entry;
+    });
+  }, [filteredTransactions, timeRange]);
+
+  const expenseData = useMemo(() => {
+    const expenses = filteredTransactions.filter(t => t.transaction_type === 'Outgoing');
+    const byCategory: Record<string, number> = {};
+    expenses.forEach(t => {
+      byCategory[t.category_name] = (byCategory[t.category_name] || 0) + t.amount;
+    });
+    return Object.entries(byCategory).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
+  }, [filteredTransactions]);
+
+  const totalIncome = useMemo(() => 
+    filteredTransactions.filter(t => t.transaction_type === 'Incoming').reduce((s, t) => s + t.amount, 0), 
+    [filteredTransactions]
+  );
+  
+  const totalExpense = useMemo(() => 
+    filteredTransactions.filter(t => t.transaction_type === 'Outgoing').reduce((s, t) => s + t.amount, 0), 
+    [filteredTransactions]
+  );
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto space-y-8 animate-in slide-in-from-right-10 duration-500 pb-24">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-white">Financial Statistics</h2>
+        
+        {/* Time Range Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setIsTimeRangeOpen(!isTimeRangeOpen)}
+            className="flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 transition-colors"
+          >
+            {timeRange}
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {isTimeRangeOpen && (
+            <div className="absolute right-0 mt-2 w-40 rounded-xl border border-neutral-700 bg-neutral-900 shadow-2xl z-50 overflow-hidden">
+              {(['DAY', 'WEEK', 'MONTH', 'YEAR'] as const).map((range) => (
+                <button
+                  key={range}
+                  onClick={() => {
+                    setTimeRange(range);
+                    setIsTimeRangeOpen(false);
+                  }}
+                  className={`w-full px-4 py-2.5 text-left text-sm transition-colors flex items-center justify-between ${
+                    timeRange === range 
+                      ? 'bg-neutral-800 text-white font-semibold' 
+                      : 'text-zinc-400 hover:bg-neutral-800 hover:text-white'
+                  }`}
+                >
+                  {range}
+                  {timeRange === range && (
+                    <svg className="h-4 w-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Trend Line Chart */}
+      <div className="rounded-3xl border border-neutral-800 bg-[#09090b] p-6 shadow-xl">
+        <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-6">Transaction Trends</h3>
+        
+        {trendData.length > 0 ? (
+          <div className="w-full h-[400px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <XAxis 
+                  dataKey="label" 
+                  stroke="#71717a" 
+                  tick={{fill: '#a1a1aa', fontSize: 10, dy: 10}} 
+                  textAnchor="end"
+                  height={60}
+                  minTickGap={30}
+                  padding={{ right: 20 }}
+                  angle={-45}
+                />
+                <YAxis 
+                  stroke="#71717a" 
+                  tick={{fill: '#a1a1aa', fontSize: 9}} 
+                  width={55}
+                  tickFormatter={(val) => new Intl.NumberFormat('id-ID').format(val)}
+                />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(val) => [formatCurrency(val as number), "Balance"]}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="balance" 
+                  stroke="#60a5fa" 
+                  strokeWidth={4}
+                  fillOpacity={1} 
+                  fill="url(#colorBalance)" 
+                  activeDot={{ r: 6, strokeWidth: 0 }}
+                  dot={{ r: 3, strokeWidth: 0, fill: '#60a5fa' }}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-[450px] flex items-center justify-center text-zinc-500">
+            No transaction data available
+          </div>
+        )}
+      </div>
+
+      {/* Income & Expense Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="rounded-3xl border border-neutral-800 bg-[#09090b] p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-10 -mt-10 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                <ArrowDownLeft className="h-6 w-6 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total Income</p>
+              </div>
+            </div>
+            <p className={`font-bold text-emerald-400 tracking-tight ${getResponsiveAmountClass(totalIncome, 'stats')}`}>{formatCurrency(totalIncome)}</p>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-neutral-800 bg-[#09090b] p-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mr-10 -mt-10 h-40 w-40 rounded-full bg-red-500/10 blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <ArrowUpRight className="h-6 w-6 text-red-400" />
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">Total Expenses</p>
+              </div>
+            </div>
+            <p className={`font-bold text-red-400 tracking-tight ${getResponsiveAmountClass(totalExpense, 'stats')}`}>{formatCurrency(totalExpense)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Category Pie Chart */}
+      <div className="rounded-3xl border border-neutral-800 bg-[#09090b] p-6 shadow-xl">
+        <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-2">Expenses by Category</h3>
+        {expenseData.length > 0 ? (
+          <div className="w-full h-80 flex flex-col items-center">
+            <ResponsiveContainer width="100%" height={320}>
+              <PieChart>
+                <Pie
+                  data={expenseData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                  stroke="none"
+                >
+                  {expenseData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                   contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: '12px' }}
+                   itemStyle={{ color: '#fff' }}
+                   formatter={(val) => formatCurrency(val as number)}
+                />
+                <Legend iconType="circle" wrapperStyle={{ color: '#a1a1aa' }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="h-64 flex items-center justify-center text-zinc-600">
+            No expense data available
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettingsView({ user, identity, onLogout }: { user: User | null; identity: UserIdentity | null; onLogout: () => void }) {
+  const [username, setUsername] = useState(user?.username || "");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  
+  const [usernameStatus, setUsernameStatus] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleUpdateUsername = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === user?.username) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setUsernameStatus("Username updated successfully. Please restart.");
+        localStorage.setItem("username", username);
+      } else {
+        setUsernameStatus(data.error || "Failed to update username");
+      }
+    } catch {
+      setUsernameStatus("Error updating username");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!identity) return;
+    if (newPassword !== confirmNewPassword) {
+      setPasswordStatus("New passwords do not match");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const newEncryptedIdentity = await encryptIdentity(identity, newPassword);
+      
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/me", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ encrypted_private_key: newEncryptedIdentity })
+      });
+      
+      if (res.ok) {
+        setPasswordStatus("Password updated! Please remember it.");
+        localStorage.setItem("encrypted_identity", JSON.stringify(newEncryptedIdentity));
+        setNewPassword("");
+        setConfirmNewPassword("");
+      } else {
+        setPasswordStatus("Failed to update password");
+      }
+    } catch (e) {
+      console.error(e);
+      setPasswordStatus("Error updating password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-6 max-w-2xl mx-auto space-y-8 animate-in slide-in-from-right-10 duration-500 pb-24">
+      <h2 className="text-4xl font-bold text-white tracking-tight mb-8">Settings</h2>
+
+      {/* Main Settings Card */}
+      <div className="rounded-3xl border border-neutral-800 bg-[#09090b] p-8 shadow-xl relative overflow-hidden space-y-10">
+        
+        {/* Profile Section */}
+        <div className="space-y-6">
+           <form onSubmit={handleUpdateUsername} className="space-y-4">
+              <div className="space-y-1">
+                 <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider ml-1">Display Name</label>
+                 <input 
+                  type="text" 
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-800/50 px-4 py-3.5 text-white focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all shadow-sm"
+                />
+              </div>
+              {usernameStatus && (
+                <p className={`text-sm font-medium ${usernameStatus.includes("success") ? "text-emerald-400" : "text-red-400"}`}>
+                  {usernameStatus}
+                </p>
+              )}
+              <button 
+                type="submit" 
+                disabled={loading || username === user?.username}
+                className="w-full rounded-xl bg-white py-3 font-bold text-black shadow-lg shadow-white/10 disabled:opacity-50 hover:bg-zinc-200 transition-all active:scale-[0.98]"
+              >
+                Save Display Name
+              </button>
+           </form>
+        </div>
+
+        <div className="h-px bg-neutral-800 w-full"></div>
+
+        {/* Security Section */}
+        <div className="space-y-6">
+            <form onSubmit={handleUpdatePassword} className="space-y-4">
+              <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider ml-1">New Password</label>
+                    <input 
+                      type="password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full rounded-xl border border-neutral-700 bg-neutral-800/50 px-4 py-3 text-white focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider ml-1">Confirm Password</label>
+                    <input 
+                       type="password"
+                       required
+                       value={confirmNewPassword}
+                       onChange={(e) => setConfirmNewPassword(e.target.value)}
+                       className="w-full rounded-xl border border-neutral-700 bg-neutral-800/50 px-4 py-3 text-white focus:border-white focus:outline-none focus:ring-1 focus:ring-white transition-all"
+                     />
+                  </div>
+              </div>
+              
+              {passwordStatus && (
+                <p className={`text-sm font-medium ${passwordStatus.includes("updated") ? "text-emerald-400" : "text-red-400"}`}>
+                  {passwordStatus}
+                </p>
+              )}
+              <button 
+                type="submit" 
+                disabled={loading || !newPassword}
+                className="w-full rounded-xl bg-white py-3 font-bold text-black disabled:opacity-50 hover:bg-zinc-200 transition-all shadow-sm active:scale-[0.98]"
+              >
+                Update Password
+              </button>
+            </form>
+        </div>
+
+        <div className="h-px bg-neutral-800 w-full"></div>
+
+        {/* Danger Zone */}
+        <div className="space-y-6 pt-2">
+            <button 
+              onClick={onLogout} 
+              className="w-full group flex items-center justify-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 py-3.5 text-red-400 font-bold hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shadow-lg shadow-red-900/10"
+            >
+              <LogOut className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+              Delete Vault
+            </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // --- Main App ---
 
 export default function App() {
@@ -1075,6 +1949,8 @@ export default function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [currentView, setCurrentView] = useState<View>("home");
+
   // Compute unique categories from existing transactions
   const uniqueCategories = useMemo(() => {
     return Array.from(new Set(transactions.map(t => t.category_name))).sort();
@@ -1270,6 +2146,7 @@ export default function App() {
       if (res.ok) {
         await fetchData();
         setShowAddModal(false);
+        setCurrentView("home");
       }
     } catch (e) {
       console.error(e);
@@ -1401,97 +2278,49 @@ export default function App() {
     return <Auth onLogin={handleLoginSuccess} />;
   }
 
-  
-      return (
-        <BrowserRouter>
-          <Routes>
-            <Route element={
-              <DashboardShell onAddTransaction={() => setShowAddModal(true)}>
-                <Outlet context={{ user, identity, transactions, onTransactionClick: setSelectedTransaction, onLogout: handleLogout }} />
-                {showAddModal && (
-                  <AddTransactionModal 
-                    onClose={() => setShowAddModal(false)} 
-                    onSubmit={handleAddTransaction} 
-                    availableCategories={uniqueCategories}
-                    user={user}
-                  />
-                )}
-                {selectedTransaction && (
-                  <TransactionDetailModal
-                    transaction={selectedTransaction}
-                    onClose={() => setSelectedTransaction(null)}
-                    onEdit={handleEditTransaction}
-                    onDelete={handleDeleteTransaction}
-                    availableCategories={uniqueCategories}
-                    user={user}
-                  />
-                )}
-              </DashboardShell>
-            }>
-              <Route path="/" element={<Suspense fallback={<div className="text-zinc-500 p-8 text-center">Loading...</div>}><HomeView /></Suspense>} />
-              <Route path="/transactions" element={<Suspense fallback={<div className="text-zinc-500 p-8 text-center">Loading...</div>}><ListView /></Suspense>} />
-              <Route path="/statistics" element={<Suspense fallback={<div className="text-zinc-500 p-8 text-center">Loading...</div>}><StatisticsView /></Suspense>} />
-              <Route path="/settings" element={<Suspense fallback={<div className="text-zinc-500 p-8 text-center">Loading...</div>}><SettingsView /></Suspense>} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      );
-}
+  return (
+    <>
+      <DashboardShell 
+        onAddTransaction={() => setShowAddModal(true)}
+        currentView={currentView}
+        setCurrentView={setCurrentView}
+      >
+        {currentView === 'home' && (
+          <HomeView 
+            user={user} 
+            transactions={transactions} 
+            onTransactionClick={(tx) => setSelectedTransaction(tx)} 
+          />
+        )}
+        {currentView === 'transactions' && (
+          <TransactionsView 
+            transactions={transactions} 
+            onTransactionClick={(tx) => setSelectedTransaction(tx)}
+          />
+        )}
+        {currentView === 'statistics' && <StatisticsView transactions={transactions} />}
+        {currentView === 'settings' && <SettingsView user={user} identity={identity} onLogout={handleLogout} />}
+      </DashboardShell>
 
-function DashboardShell({ onAddTransaction, children }: { onAddTransaction: () => void, children: React.ReactNode }) {
+      {showAddModal && (
+        <AddTransactionModal 
+          onClose={() => setShowAddModal(false)} 
+          onSubmit={handleAddTransaction} 
+          availableCategories={uniqueCategories}
+          user={user}
+        />
+      )}
 
-      return (
-        <div className="flex h-screen bg-black text-white font-sans overflow-hidden selection:bg-zinc-700 selection:text-white">
-          <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-            <header className="flex-none flex items-center justify-between px-6 py-4 bg-black/50 backdrop-blur-md border-b border-white/5 z-20">
-              <div>
-                <h1 className="text-xl font-bold text-white tracking-tight">Money Tracker</h1>
-              </div>
-            </header>
-
-            <main className="flex-1 overflow-y-auto pb-44 scrollbar-none">
-              {children}
-            </main>
-
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 pb-[env(safe-area-inset-bottom)] w-[calc(100%-2rem)] max-w-sm mx-auto">
-              <div className="flex justify-between sm:justify-center items-center gap-1 sm:gap-2 rounded-3xl border border-white/20 bg-zinc-900/80 backdrop-blur-3xl p-1.5 sm:p-2 shadow-2xl shadow-black/80 ring-1 ring-white/10 overflow-x-auto scrollbar-none">
-                <NavLink 
-                  to="/"
-                  className={({isActive}) => `p-2.5 sm:p-3.5 rounded-2xl transition-all duration-300 flex-1 sm:flex-none flex justify-center ${isActive ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
-                >
-                  <Home className="h-5 w-5 sm:h-6 sm:w-6" />
-                </NavLink>
-                <NavLink 
-                  to="/transactions"
-                  className={({isActive}) => `p-2.5 sm:p-3.5 rounded-2xl transition-all duration-300 flex-1 sm:flex-none flex justify-center ${isActive ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
-                >
-                  <Wallet className="h-5 w-5 sm:h-6 sm:w-6" />
-                </NavLink>
-                <NavLink 
-                  to="/statistics"
-                  className={({isActive}) => `p-2.5 sm:p-3.5 rounded-2xl transition-all duration-300 flex-1 sm:flex-none flex justify-center ${isActive ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
-                >
-                  <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
-                </NavLink>
-                <NavLink 
-                  to="/settings"
-                  className={({isActive}) => `p-2.5 sm:p-3.5 rounded-2xl transition-all duration-300 flex-1 sm:flex-none flex justify-center ${isActive ? 'bg-zinc-800 text-white shadow-inner shadow-black/50 ring-1 ring-white/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'}`}
-                >
-                  <Settings className="h-5 w-5 sm:h-6 sm:w-6" />
-                </NavLink>
-
-                <div className="hidden sm:block w-px h-8 bg-white/10 mx-1"></div>
-
-                <button 
-                  onClick={() => onAddTransaction()}
-                  className="p-2.5 sm:p-3.5 rounded-2xl text-zinc-400 hover:text-white hover:bg-white/10 transition-all duration-300 flex-1 sm:flex-none flex justify-center"
-                >
-                  <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
+      {selectedTransaction && (
+        <TransactionDetailModal
+          transaction={selectedTransaction}
+          onClose={() => setSelectedTransaction(null)}
+          onEdit={handleEditTransaction}
+          onDelete={handleDeleteTransaction}
+          availableCategories={uniqueCategories}
+          user={user}
+        />
+      )}
+    </>
+  );
 }
