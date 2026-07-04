@@ -52,7 +52,7 @@ export default function HomeView() {
       <h2 className="text-4xl sm:text-5xl font-semibold text-white tracking-tighter mb-2">Welcome, <span className="text-neutral-400">{user?.username}</span></h2>
       <p className="text-neutral-400 mb-8 font-medium">Here is your financial overview.</p>
 
-      {/* Balance Card */}
+      
       <div className="relative overflow-hidden rounded-3xl bg-[#111111] border border-white/5 shadow-2xl group">
         <div className="absolute top-0 right-0 -mr-4 -mt-4 h-48 w-48 rounded-full bg-white/5 blur-3xl group-hover:bg-white/10 transition-colors duration-500"></div>
         <div className="relative z-10 flex flex-col p-8">
@@ -84,7 +84,7 @@ export default function HomeView() {
         </div>
       </div>
 
-      {/* Recent Activity */}
+      
       <div>
         <div className="flex items-center justify-between mb-4 px-1">
           <h3 className="text-lg font-semibold text-white">Recent Activity</h3>

@@ -1,5 +1,5 @@
 
-// Utility to convert ArrayBuffer to Base64
+
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
   const bytes = new Uint8Array(buffer);
@@ -10,7 +10,7 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return window.btoa(binary);
 }
 
-// Utility to convert Base64 to ArrayBuffer
+
 export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary_string = window.atob(base64);
   const len = binary_string.length;
@@ -21,17 +21,17 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   return bytes.buffer;
 }
 
-// --- Key Generation & Management ---
+
 
 export type UserIdentity = {
-  authKeys: CryptoKeyPair; // ECDSA for Login
-  dataKey: CryptoKey;      // AES-GCM for Data
+  authKeys: CryptoKeyPair; 
+  dataKey: CryptoKey;      
 };
 
 export type EncryptedIdentity = {
-  salt: string; // Base64
-  iv: string;   // Base64
-  ciphertext: string; // Encrypted JSON of exported keys
+  salt: string; 
+  iv: string;   
+  ciphertext: string; 
 };
 
 export async function generateIdentity(): Promise<UserIdentity> {
@@ -56,7 +56,7 @@ export async function generateIdentity(): Promise<UserIdentity> {
   return { authKeys, dataKey };
 }
 
-// Derive a wrapping key from the user's password
+
 async function deriveWrapperKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const keyMaterial = await window.crypto.subtle.importKey(
@@ -81,9 +81,9 @@ async function deriveWrapperKey(password: string, salt: Uint8Array): Promise<Cry
   );
 }
 
-// Export keys and encrypt them with the password
+
 export async function encryptIdentity(identity: UserIdentity, password: string): Promise<EncryptedIdentity> {
-  // Export keys to JWK
+  
   const privateAuthJwk = await window.crypto.subtle.exportKey("jwk", identity.authKeys.privateKey);
   const publicAuthJwk = await window.crypto.subtle.exportKey("jwk", identity.authKeys.publicKey);
   const dataKeyJwk = await window.crypto.subtle.exportKey("jwk", identity.dataKey);
@@ -115,7 +115,7 @@ export async function encryptIdentity(identity: UserIdentity, password: string):
   };
 }
 
-// Decrypt keys with password
+
 export async function decryptIdentity(encryptedId: EncryptedIdentity, password: string): Promise<UserIdentity> {
   const salt = new Uint8Array(base64ToArrayBuffer(encryptedId.salt));
   const iv = new Uint8Array(base64ToArrayBuffer(encryptedId.iv));
@@ -160,7 +160,7 @@ export async function decryptIdentity(encryptedId: EncryptedIdentity, password: 
         ["verify"]
       );
     } else {
-        // Fallback: Derive public key from private key if missing from payload
+        
         const privateJwk = await window.crypto.subtle.exportKey("jwk", authPrivateKey);
         authPublicKey = await window.crypto.subtle.importKey(
             "jwk",
@@ -197,13 +197,13 @@ export async function decryptIdentity(encryptedId: EncryptedIdentity, password: 
   }
 }
 
-// Helper to export Public Key for registration
+
 export async function exportPublicKey(key: CryptoKey): Promise<string> {
     const jwk = await window.crypto.subtle.exportKey("jwk", key);
     return JSON.stringify(jwk);
 }
 
-// --- Operations ---
+
 
 export async function signChallenge(privateKey: CryptoKey, challenge: string): Promise<string> {
     const enc = new TextEncoder();
@@ -231,7 +231,7 @@ export async function encryptData(text: string, key: CryptoKey): Promise<string>
         enc.encode(text)
     );
     
-    // Format: IV|Ciphertext
+    
     return arrayBufferToBase64(iv.buffer) + ":" + arrayBufferToBase64(ciphertext);
 }
 
@@ -260,7 +260,7 @@ export async function decryptData(packed: string, key: CryptoKey): Promise<strin
     }
 }
 
-// --- Session Persistence ---
+
 
 export async function serializeIdentity(identity: UserIdentity): Promise<string> {
     const authPrivateJwk = await window.crypto.subtle.exportKey("jwk", identity.authKeys.privateKey);

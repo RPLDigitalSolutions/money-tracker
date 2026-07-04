@@ -26,7 +26,7 @@ export default function StatisticsView() {
   const [timeRange, setTimeRange] = useState<'DAY' | 'WEEK' | 'MONTH' | 'YEAR'>('MONTH');
   const [isTimeRangeOpen, setIsTimeRangeOpen] = useState(false);
 
-  // Filter transactions based on time range
+  
   const filteredTransactions = useMemo(() => {
     const now = dayjs().tz('Asia/Jakarta');
     let startDate: dayjs.Dayjs;
@@ -47,7 +47,7 @@ export default function StatisticsView() {
     });
   }, [transactions, timeRange]);
 
-  // Prep data for line chart - group by selected time range
+  
   const trendData = useMemo(() => {
     const now = dayjs().tz('Asia/Jakarta');
     const dataMap: Record<string, { income: number; expense: number; label: string; timestamp: number }> = {};
@@ -238,7 +238,7 @@ export default function StatisticsView() {
       </div>
 
       <div className="space-y-6">
-        {/* Balance Chart */}
+        
         <div className="rounded-3xl border border-white/5 bg-[#111111] p-6 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full blur-[80px] opacity-20 pointer-events-none bg-blue-500"></div>
           <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-6 relative z-10">Net Balance</h3>
@@ -258,7 +258,7 @@ export default function StatisticsView() {
           )}
         </div>
 
-        {/* Income Chart */}
+        
         <div className="rounded-3xl border border-white/5 bg-[#111111] p-6 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full blur-[80px] opacity-20 pointer-events-none bg-[#00C805]"></div>
           <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-6 relative z-10">Total Income</h3>
@@ -278,7 +278,7 @@ export default function StatisticsView() {
           )}
         </div>
 
-        {/* Expenses Chart */}
+        
         <div className="rounded-3xl border border-white/5 bg-[#111111] p-6 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 -mr-20 -mt-20 h-64 w-64 rounded-full blur-[80px] opacity-20 pointer-events-none bg-[#FF5000]"></div>
           <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-6 relative z-10">Total Expenses</h3>
@@ -299,7 +299,7 @@ export default function StatisticsView() {
         </div>
       </div>
 
-      {/* Dual Category Lists */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="rounded-3xl border border-white/5 bg-[#111111] p-6 shadow-xl">
           <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider mb-6">Income by Category</h3>

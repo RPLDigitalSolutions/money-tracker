@@ -44,7 +44,7 @@ export default function ListView() {
     t.notes?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Group by day (newest first)
+  
   const groupedByDay = useMemo(() => {
     const groups: Record<string, Transaction[]> = {};
     
@@ -57,7 +57,7 @@ export default function ListView() {
       groups[dayKey].push(t);
     });
     
-    // Sort days newest first, and transactions within each day
+    
     return Object.entries(groups)
       .sort(([a], [b]) => b.localeCompare(a))
       .map(([dayKey, txs]) => ({

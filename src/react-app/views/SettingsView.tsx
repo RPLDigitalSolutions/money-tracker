@@ -92,10 +92,10 @@ export default function SettingsView() {
     >
       <h2 className="text-4xl font-bold text-white tracking-tight mb-8">Settings</h2>
 
-      {/* Main Settings Card */}
+      
       <div className="rounded-3xl border border-neutral-800 bg-[#09090b] p-8 shadow-xl relative overflow-hidden space-y-10">
         
-        {/* Profile Section */}
+        
         <div className="space-y-6">
            <form onSubmit={handleUpdateUsername} className="space-y-4">
               <div className="space-y-1">
@@ -124,7 +124,7 @@ export default function SettingsView() {
 
         <div className="h-px bg-neutral-800 w-full"></div>
 
-        {/* Security Section */}
+        
         <div className="space-y-6">
             <form onSubmit={handleUpdatePassword} className="space-y-4">
               <div className="space-y-4">
@@ -167,7 +167,7 @@ export default function SettingsView() {
 
         <div className="h-px bg-neutral-800 w-full"></div>
 
-        {/* Danger Zone */}
+        
         <div className="space-y-6 pt-2">
             <button 
               onClick={onLogout} 
