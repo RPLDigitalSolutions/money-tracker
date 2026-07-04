@@ -42,6 +42,7 @@ export function CategoryDropdown({
                              e.preventDefault();
                              e.stopPropagation();
                              if (onEditCategory) onEditCategory(c, editingCategoryValue);
+                             setCategory(editingCategoryValue);
                              setEditingCategory(null);
                           } else if (e.key === 'Escape') {
                              setEditingCategory(null);
@@ -49,7 +50,7 @@ export function CategoryDropdown({
                        }}
                        className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
                     />
-                    <button type="button" onClick={(e) => { e.stopPropagation(); if (onEditCategory) onEditCategory(c, editingCategoryValue); setEditingCategory(null); }} className="p-1 text-emerald-400 hover:text-emerald-300">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); if (onEditCategory) onEditCategory(c, editingCategoryValue); setCategory(editingCategoryValue); setEditingCategory(null); }} className="p-1 text-emerald-400 hover:text-emerald-300">
                        <Check className="h-4 w-4" />
                     </button>
                     <button type="button" onClick={(e) => { e.stopPropagation(); setEditingCategory(null); }} className="p-1 text-zinc-400 hover:text-zinc-200">
