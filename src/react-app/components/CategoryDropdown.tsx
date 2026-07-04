@@ -62,16 +62,15 @@ export function CategoryDropdown({
                    <button
                       type="button"
                       onClick={() => { setCategory(c); setIsDropdownOpen(false); }}
-                      className={`w-full text-left px-3 py-2.5 rounded-lg flex items-center justify-between text-sm transition-all group-hover:pr-16 ${
+                      className={`w-full text-left pl-3 pr-16 py-2.5 rounded-lg flex items-center justify-between text-sm transition-all ${
                         category === c 
-                          ? 'bg-neutral-800 text-white font-medium' 
+                          ? 'bg-neutral-800 text-emerald-400 font-medium' 
                           : 'text-zinc-400 hover:bg-neutral-800 hover:text-zinc-200'
                       }`}
                    >
                      <span className="truncate">{c}</span>
-                     {category === c && <Check className="h-4 w-4 text-emerald-500" />}
                    </button>
-                   <div className="absolute right-2 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-opacity">
+                   <div className="absolute right-2 flex items-center gap-1">
                      <button 
                         type="button" 
                         onClick={(e) => { 
