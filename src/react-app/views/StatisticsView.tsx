@@ -174,11 +174,13 @@ export default function StatisticsView() {
          }
       }
       
-      const diffDays = endD.diff(startD, 'day');
+      const startOfD = startD.startOf('day');
+      const endOfD = endD.startOf('day');
+      const diffDays = endOfD.diff(startOfD, 'day');
       
       if (diffDays <= 31) {
         for (let i = 0; i <= diffDays; i++) {
-          const dayDate = startD.add(i, 'day');
+          const dayDate = startOfD.add(i, 'day');
           const dayKey = dayDate.format('YYYY-MM-DD');
           dataMap[dayKey] = {
             income: 0,
@@ -271,7 +273,7 @@ export default function StatisticsView() {
       }
       return entry;
     });
-  }, [filteredTransactions, timeRange]);
+  }, [filteredTransactions, timeRange, customRange]);
 
   const expenseCategoryData = useMemo(() => {
     const expenses = filteredTransactions.filter(t => t.transaction_type === 'Outgoing');
