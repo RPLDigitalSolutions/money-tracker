@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronDown, Check } from 'lucide-react';
+import { ChevronDown, Check, Calendar } from 'lucide-react';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -23,13 +23,15 @@ dayjs.extend(isSameOrAfter);
 
 export default function StatisticsView() {
   const { transactions } = useOutletContext<{ transactions: Transaction[] }>();
-  const [timeRange, setTimeRange] = useState<'DAY' | 'WEEK' | 'MONTH' | 'YEAR'>('MONTH');
+  const [timeRange, setTimeRange] = useState<'ALL_TIME' | 'DAY' | 'WEEK' | 'MONTH' | 'YEAR' | 'CUSTOM'>('ALL_TIME');
+  const [customRange, setCustomRange] = useState({ start: '', end: '' });
   const [isTimeRangeOpen, setIsTimeRangeOpen] = useState(false);
 
   
   const filteredTransactions = useMemo(() => {
     const now = dayjs().tz('Asia/Jakarta');
-    let startDate: dayjs.Dayjs;
+    let startDate: dayjs.Dayjs | null = null;
+    let endDate: dayjs.Dayjs | null = null;
     
     if (timeRange === 'DAY') {
       startDate = now.startOf('day');
@@ -37,15 +39,23 @@ export default function StatisticsView() {
       startDate = now.startOf('week');
     } else if (timeRange === 'MONTH') {
       startDate = now.startOf('month');
-    } else {
+    } else if (timeRange === 'YEAR') {
       startDate = now.startOf('year');
+    } else if (timeRange === 'CUSTOM') {
+      if (customRange.start) startDate = dayjs(customRange.start).tz('Asia/Jakarta').startOf('day');
+      if (customRange.end) endDate = dayjs(customRange.end).tz('Asia/Jakarta').endOf('day');
     }
     
+    if (timeRange === 'ALL_TIME') return transactions;
+    
     return transactions.filter(t => {
-      const txDate = dayjs(t.transaction_date).tz('Asia/Jakarta');
-      return txDate.isSameOrAfter(startDate);
+      const txTime = dayjs(t.transaction_date).tz('Asia/Jakarta').valueOf();
+      let isValid = true;
+      if (startDate && txTime < startDate.valueOf()) isValid = false;
+      if (endDate && txTime > endDate.valueOf()) isValid = false;
+      return isValid;
     });
-  }, [transactions, timeRange]);
+  }, [transactions, timeRange, customRange]);
 
   
   const trendData = useMemo(() => {
@@ -114,7 +124,7 @@ export default function StatisticsView() {
           else dataMap[dayKey].expense += t.amount;
         }
       });
-    } else {
+    } else if (timeRange === 'YEAR') {
       const startOfYear = now.startOf('year');
       for (let i = 0; i < 12; i++) {
         const monthDate = startOfYear.add(i, 'month');
@@ -135,6 +145,100 @@ export default function StatisticsView() {
           else dataMap[monthKey].expense += t.amount;
         }
       });
+    } else if (timeRange === 'ALL_TIME' || timeRange === 'CUSTOM') {
+      let startD = timeRange === 'CUSTOM' && customRange.start ? dayjs(customRange.start).tz('Asia/Jakarta').startOf('day') : null;
+      let endD = timeRange === 'CUSTOM' && customRange.end ? dayjs(customRange.end).tz('Asia/Jakarta').endOf('day') : null;
+      
+      if (!startD || !endD) {
+         if (filteredTransactions.length === 0) {
+            startD = now;
+            endD = now;
+         } else {
+            const dates = filteredTransactions.map(t => dayjs(t.transaction_date).tz('Asia/Jakarta').valueOf());
+            const minDate = dayjs(Math.min(...dates)).tz('Asia/Jakarta');
+            const maxDate = timeRange === 'ALL_TIME' ? now : dayjs(Math.max(...dates)).tz('Asia/Jakarta');
+            
+            if (!startD) startD = minDate;
+            if (!endD) endD = maxDate;
+            
+            if (timeRange === 'ALL_TIME') {
+              const initialDiff = endD.diff(startD, 'day');
+              if (initialDiff <= 31) {
+                startD = startD.subtract(1, 'day');
+              } else if (initialDiff <= 365 * 2) {
+                startD = startD.subtract(1, 'month');
+              } else {
+                startD = startD.subtract(1, 'year');
+              }
+            }
+         }
+      }
+      
+      const diffDays = endD.diff(startD, 'day');
+      
+      if (diffDays <= 31) {
+        for (let i = 0; i <= diffDays; i++) {
+          const dayDate = startD.add(i, 'day');
+          const dayKey = dayDate.format('YYYY-MM-DD');
+          dataMap[dayKey] = {
+            income: 0,
+            expense: 0,
+            label: dayDate.format('D MMM'),
+            timestamp: dayDate.valueOf()
+          };
+        }
+        
+        filteredTransactions.forEach(t => {
+          const txDate = dayjs(t.transaction_date).tz('Asia/Jakarta');
+          const dayKey = txDate.format('YYYY-MM-DD');
+          if (dataMap[dayKey]) {
+            if (t.transaction_type === 'Incoming') dataMap[dayKey].income += t.amount;
+            else dataMap[dayKey].expense += t.amount;
+          }
+        });
+      } else if (diffDays <= 365 * 2) {
+        const diffMonths = endD.startOf('month').diff(startD.startOf('month'), 'month');
+        for (let i = 0; i <= diffMonths; i++) {
+          const monthDate = startD.startOf('month').add(i, 'month');
+          const monthKey = monthDate.format('YYYY-MM');
+          dataMap[monthKey] = {
+            income: 0,
+            expense: 0,
+            label: monthDate.format('MMM YYYY'),
+            timestamp: monthDate.valueOf()
+          };
+        }
+        
+        filteredTransactions.forEach(t => {
+          const txDate = dayjs(t.transaction_date).tz('Asia/Jakarta');
+          const monthKey = txDate.format('YYYY-MM');
+          if (dataMap[monthKey]) {
+            if (t.transaction_type === 'Incoming') dataMap[monthKey].income += t.amount;
+            else dataMap[monthKey].expense += t.amount;
+          }
+        });
+      } else {
+        const diffYears = endD.startOf('year').diff(startD.startOf('year'), 'year');
+        for (let i = 0; i <= diffYears; i++) {
+          const yearDate = startD.startOf('year').add(i, 'year');
+          const yearKey = yearDate.format('YYYY');
+          dataMap[yearKey] = {
+            income: 0,
+            expense: 0,
+            label: yearDate.format('YYYY'),
+            timestamp: yearDate.valueOf()
+          };
+        }
+        
+        filteredTransactions.forEach(t => {
+          const txDate = dayjs(t.transaction_date).tz('Asia/Jakarta');
+          const yearKey = txDate.format('YYYY');
+          if (dataMap[yearKey]) {
+            if (t.transaction_type === 'Incoming') dataMap[yearKey].income += t.amount;
+            else dataMap[yearKey].expense += t.amount;
+          }
+        });
+      }
     }
     
     const entries = Object.entries(dataMap).map(([key, data]) => ({
@@ -194,45 +298,78 @@ export default function StatisticsView() {
       exit={{ opacity: 0, y: -10 }}
       className="p-6 max-w-4xl mx-auto pb-32 space-y-6"
     >
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Analytics</h1>
           <p className="text-zinc-400 mt-1">Track your financial performance</p>
         </div>
         
-        <div className="relative">
-          <button
-            onClick={() => setIsTimeRangeOpen(!isTimeRangeOpen)}
-            className="flex items-center gap-2 bg-neutral-800/50 hover:bg-neutral-800 px-4 py-2 rounded-xl text-white font-medium border border-neutral-700/50 transition-colors shadow-sm"
-          >
-            {timeRange === 'DAY' && 'Today'}
-            {timeRange === 'WEEK' && 'This Week'}
-            {timeRange === 'MONTH' && 'This Month'}
-            {timeRange === 'YEAR' && 'This Year'}
-            <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${isTimeRangeOpen ? 'rotate-180' : ''}`} />
-          </button>
-          
-          {isTimeRangeOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setIsTimeRangeOpen(false)}></div>
-              <div className="absolute right-0 mt-2 w-48 rounded-xl border border-neutral-800 bg-[#09090b] shadow-2xl z-20 overflow-hidden ring-1 ring-white/5 animate-in fade-in zoom-in-95 duration-100">
-                {(['DAY', 'WEEK', 'MONTH', 'YEAR'] as const).map((range) => (
-                  <button
-                    key={range}
-                    onClick={() => { setTimeRange(range); setIsTimeRangeOpen(false); }}
-                    className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between transition-colors ${
-                      timeRange === range ? 'bg-white/10 text-white font-medium' : 'text-zinc-400 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    {range === 'DAY' && 'Today'}
-                    {range === 'WEEK' && 'This Week'}
-                    {range === 'MONTH' && 'This Month'}
-                    {range === 'YEAR' && 'This Year'}
-                    {timeRange === range && <Check className="h-4 w-4" />}
-                  </button>
-                ))}
+        <div className="flex flex-col items-end gap-3">
+          <div className="relative">
+            <button
+              onClick={() => setIsTimeRangeOpen(!isTimeRangeOpen)}
+              className="flex items-center gap-2 bg-neutral-800/50 hover:bg-neutral-800 px-4 py-2 rounded-xl text-white font-medium border border-neutral-700/50 transition-colors shadow-sm"
+            >
+              {timeRange === 'ALL_TIME' && 'All Time'}
+              {timeRange === 'DAY' && 'Today'}
+              {timeRange === 'WEEK' && 'This Week'}
+              {timeRange === 'MONTH' && 'This Month'}
+              {timeRange === 'YEAR' && 'This Year'}
+              {timeRange === 'CUSTOM' && 'Custom Range'}
+              <ChevronDown className={`h-4 w-4 text-zinc-400 transition-transform ${isTimeRangeOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isTimeRangeOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setIsTimeRangeOpen(false)}></div>
+                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-neutral-800 bg-[#09090b] shadow-2xl z-20 overflow-hidden ring-1 ring-white/5 animate-in fade-in zoom-in-95 duration-100">
+                  {(['ALL_TIME', 'DAY', 'WEEK', 'MONTH', 'YEAR', 'CUSTOM'] as const).map((range) => (
+                    <button
+                      key={range}
+                      onClick={() => { 
+                        setTimeRange(range); 
+                        setIsTimeRangeOpen(false); 
+                      }}
+                      className={`w-full text-left px-4 py-3 text-sm flex items-center justify-between transition-colors ${
+                        timeRange === range ? 'bg-white/10 text-white font-medium' : 'text-zinc-400 hover:bg-white/5 hover:text-white'
+                      }`}
+                    >
+                      {range === 'ALL_TIME' && 'All Time'}
+                      {range === 'DAY' && 'Today'}
+                      {range === 'WEEK' && 'This Week'}
+                      {range === 'MONTH' && 'This Month'}
+                      {range === 'YEAR' && 'This Year'}
+                      {range === 'CUSTOM' && 'Custom Range'}
+                      {timeRange === range && <Check className="h-4 w-4" />}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {timeRange === 'CUSTOM' && (
+            <div className="flex flex-col sm:flex-row items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-300 bg-[#09090b] p-2 rounded-2xl border border-neutral-800 shadow-xl w-full sm:w-auto">
+              <div className="relative w-full sm:w-auto">
+                <input 
+                  type="date" 
+                  value={customRange.start}
+                  onChange={e => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="pr-10 pl-3 py-2 bg-[#1a1a1a] hover:bg-white/5 border border-white/5 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 [color-scheme:dark] transition-all cursor-pointer w-full sm:w-auto relative [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                />
+                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
               </div>
-            </>
+              <span className="text-zinc-600 text-sm font-medium hidden sm:block px-1">to</span>
+              <div className="relative w-full sm:w-auto">
+                <input 
+                  type="date" 
+                  value={customRange.end}
+                  onChange={e => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="pr-10 pl-3 py-2 bg-[#1a1a1a] hover:bg-white/5 border border-white/5 rounded-xl text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 [color-scheme:dark] transition-all cursor-pointer w-full sm:w-auto relative [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+                />
+                <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400 pointer-events-none" />
+              </div>
+            </div>
           )}
         </div>
       </div>
